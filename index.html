@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kindle Clippings Viewer</title>
+  <style>
+    :root { --bg:#0b0c0f; --panel:#12141a; --border:#242838; --text:#e7e9ee; --muted:#a7adbb; --accent:#4da3ff; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:linear-gradient(180deg,#0b0c0f,#0a0b0e);color:var(--text);height:100vh;display:flex;align-items:center;justify-content:center}
+    .app{width:min(1200px,96vw);height:min(720px,92vh);background:rgba(18,20,26,.9);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    .sidebar{width:320px;border-right:1px solid var(--border);display:flex;flex-direction:column}
+    .topbar{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
+    .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.03)}
+    .search{flex:1}
+    input[type="search"]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);outline:none;background:rgba(255,255,255,.03);color:var(--text)}
+    .drop{margin:12px 14px;padding:14px;border:1px dashed #3a4060;border-radius:12px;background:rgba(255,255,255,.02);color:var(--muted);font-size:13px;line-height:1.4}
+    .drop.drag{border-color:var(--accent);color:var(--text);background:rgba(77,163,255,.08)}
+    .booklist{flex:1;overflow:auto;padding:6px 6px 10px}
+    .book{padding:10px 10px;border-radius:10px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+    .book:hover{background:rgba(255,255,255,.04)}
+    .book.active{background:rgba(77,163,255,.12);outline:1px solid rgba(77,163,255,.35)}
+    .book .t{flex:1}
+    .book .title{font-size:13px;line-height:1.35}
+    .book .meta{font-size:12px;color:var(--muted);margin-top:4px}
+    .badge{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px}
+    .main{flex:1;display:flex;flex-direction:column}
+    .mainHead{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .mainHead h1{font-size:16px;margin:0;flex:1}
+    .btn{appearance:none;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
+    .btn:hover{border-color:#3b4266}
+    .content{flex:1;overflow:auto;padding:16px}
+    .empty{color:var(--muted);font-size:14px;line-height:1.6;max-width:520px;margin:40px auto;text-align:center}
+    .clip{border:1px solid var(--border);background:rgba(255,255,255,.02);border-radius:12px;padding:12px 12px 10px;margin:0 0 10px}
+    .clipTop{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+    .tag{font-size:12px;border:1px solid var(--border);padding:2px 8px;border-radius:999px;color:var(--muted)}
+    .loc{font-size:12px;color:var(--muted);margin-left:auto}
+    .clipText{white-space:pre-wrap;line-height:1.7;font-size:14px}
+    .clipActions{display:flex;gap:8px;margin-top:10px}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(10,11,14,.9);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s}
+    .toast.show{opacity:1}
+    .footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center}
+    .filepick{margin-left:auto}
+    .filepick input{display:none}
+    .filepick label{cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="topbar">
+        <div class="pill">Kindle Clippings</div>
+        <div class="search"><input id="q" type="search" placeholder="搜索书名 / 内容" /></div>
+      </div>
+
+      <div id="drop" class="drop">
+        把 <b>My Clippings.txt</b> 拖到这里，或右下角选择文件。<br/>
+        （本地解析，不会上传）
+      </div>
+
+      <div id="booklist" class="booklist"></div>
+
+      <div class="footer">
+        <span class="pill" id="stat">未导入</span>
+        <div class="filepick">
+          <label class="btn" for="file">选择文件</label>
+          <input id="file" type="file" accept=".txt,text/plain" />
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="mainHead">
+        <h1 id="bookTitle">未选择书籍</h1>
+        <button class="btn" id="copyBook" disabled>复制整本</button>
+      </div>
+      <div class="content" id="content">
+        <div class="empty">
+          先把 <b>My Clippings.txt</b> 拖进来。<br/>
+          解析后会按书分组，右侧按 <b>location</b> 排序展示，每条都能复制。
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast">已复制</div>
+
+<script>
+/** ========== Utils ========== */
+const $ = (s)=>document.querySelector(s);
+const toast = (msg="已复制")=>{
+  const t=$("#toast");
+  t.textContent=msg;
+  t.classList.add("show");
+  clearTimeout(toast._timer);
+  toast._timer=setTimeout(()=>t.classList.remove("show"), 900);
+};
+
+// 去掉作者括号：只处理行尾的 " (xxx)"，保留书名里可能出现的括号
+function stripAuthorParen(titleLine){
+  // 书名在最前面，从第一个左括号开始全砍掉
+  return titleLine
+    .split(/[(（]/)[0]
+    .trim();
+}
+
+function normalizeNewlines(s){
+  return s.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+}
+
+// 尝试从元信息行里提取 location（支持英文/中文的一些常见形态）
+function parseLocation(meta){
+  // 先抓 "位置 #190-192" / "位置#190-192" / "位置 190-192"
+  let m = meta.match(/位置\s*#?\s*(\d+)(?:\s*-\s*(\d+))?/);
+  if(m) return { start: Number(m[1]), end: m[2]?Number(m[2]):Number(m[1]) };
+
+  // English: "Location 123-125"
+  m = meta.match(/Location\s+(\d+)(?:\s*-\s*(\d+))?/i);
+  if(m) return { start: Number(m[1]), end: m[2]?Number(m[2]):Number(m[1]) };
+
+  // variants: "Loc. 123-125"
+  m = meta.match(/Loc\.?\s*(\d+)(?:\s*-\s*(\d+))?/i);
+  if(m) return { start: Number(m[1]), end: m[2]?Number(m[2]):Number(m[1]) };
+
+  return null;
+}
+
+function parseType(meta){
+  // 先处理中文
+  if(/标注/.test(meta)) return "highlight";
+  if(/笔记/.test(meta)) return "note";
+  if(/书签/.test(meta)) return "bookmark";
+
+  // 英文
+  if(/Highlight/i.test(meta)) return "highlight";
+  if(/Note/i.test(meta)) return "note";
+  if(/Bookmark/i.test(meta)) return "bookmark";
+
+  return "unknown";
+}
+
+function typeLabel(t){
+  if(t==="highlight") return "标注";
+  if(t==="note") return "笔记";
+  if(t==="bookmark") return "书签";
+  return "未知";
+}
+
+async function copyText(s){
+  try{
+    await navigator.clipboard.writeText(s);
+    toast("已复制");
+  }catch(e){
+    // fallback
+    const ta=document.createElement("textarea");
+    ta.value=s; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy");
+    document.body.removeChild(ta);
+    toast("已复制");
+  }
+}
+
+
+function normText(s){
+  return (s ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/[“”"‘’']/g, "")
+    .trim();
+}
+
+function rangesOverlap(a, b){
+  if(!a || !b) return false;
+  return a.start <= b.end && b.start <= a.end;
+}
+
+function overlapSuffixPrefix(a, b, minLen = 20, maxLen = 120){
+  // 找 a 的后缀 与 b 的前缀 的最大重叠长度
+  const A = normText(a);
+  const B = normText(b);
+  const max = Math.min(maxLen, A.length, B.length);
+  for(let k = max; k >= minLen; k--){
+    if(A.slice(-k) === B.slice(0, k)) return k;
+  }
+  return 0;
+}
+
+function mergeTwoItems(x, y){
+  // 假定两条需要合并：返回合并后的 item（优先保留更完整的内容）
+  const nx = normText(x.content);
+  const ny = normText(y.content);
+
+  // 1) 包含关系：直接取更长更完整的
+  if(nx.includes(ny)) return x;
+  if(ny.includes(nx)) return y;
+
+  // 2) 断句拼接：x 后缀 == y 前缀
+  const k = overlapSuffixPrefix(x.content, y.content);
+  if(k > 0){
+    const mergedContent = x.content + y.content.slice(k);
+    return {
+      ...x,
+      content: mergedContent.trim(),
+      location: x.location && y.location ? { start: Math.min(x.location.start, y.location.start), end: Math.max(x.location.end, y.location.end) } : (x.location || y.location),
+      locationSort: x.location && y.location ? Math.min(x.location.start, y.location.start) : (x.locationSort ?? Number.MAX_SAFE_INTEGER),
+      // meta 保留第一条也行，这里保留 x 的
+    };
+  }
+
+  // 3) 没法可靠拼接：选更长那条（更接近“完整句子”）
+  return (ny.length > nx.length) ? y : x;
+}
+
+function dedupeAndMergeItems(items){
+  // 只对 highlight/note 做合并；bookmark 通常独立
+  const out = [];
+  for(const it of items){
+    if(out.length === 0){ out.push(it); continue; }
+
+    const prev = out[out.length - 1];
+
+    const canMergeType = (it.type === prev.type) && (it.type === "highlight" || it.type === "note");
+    const overlap = rangesOverlap(it.location, prev.location);
+
+    if(canMergeType && overlap){
+      // 合并并替换 prev
+      out[out.length - 1] = mergeTwoItems(prev, it);
+    }else{
+      // 另外一个常见情况：完全相同 location 的重复项（不一定相邻）
+      // 我们在这里简单处理：如果同 type + 同 location.start/end，就用更“完整”的替换
+      const sameLoc = it.location && prev.location &&
+        it.location.start === prev.location.start &&
+        it.location.end === prev.location.end &&
+        it.type === prev.type;
+
+      if(sameLoc){
+        out[out.length - 1] = mergeTwoItems(prev, it);
+      }else{
+        out.push(it);
+      }
+    }
+  }
+
+  // 再做一次轻量去重：同 location + 同内容（规整后）
+  const seen = new Set();
+  return out.filter(it=>{
+    const key = `${it.type}|${it.location?.start ?? "?"}-${it.location?.end ?? "?"}|${normText(it.content)}`;
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+/** ========== Parsing ========== */
+function parseClippings(text){
+  const raw = normalizeNewlines(text);
+  const segments = raw.split("==========").map(s=>s.trim()).filter(Boolean);
+
+  /** books: Map<title, {title, items:[]}> */
+  const books = new Map();
+
+  for(const seg of segments){
+    // 分行：保留空行有助于判断，但这里简单处理
+    const lines = seg.split("\n");
+
+    // title line
+    const titleLine = (lines[0]||"").trim();
+    if(!titleLine) continue;
+
+    const bookTitle = stripAuthorParen(titleLine);
+
+    // meta line: 通常第二行
+    const metaLine = (lines[1]||"").trim();
+
+    // content: 通常从第3行开始，跳过空行，合并剩余非空行
+    const rest = lines.slice(2).join("\n").trim();
+    if(!rest) continue; // 书签可能没有内容，你也可以选择保留，这里先跳过空内容
+
+    const loc = parseLocation(metaLine);
+    const type = parseType(metaLine);
+
+    const item = {
+      bookTitle,
+      type,
+      location: loc,               // {start,end} | null
+      locationSort: loc ? loc.start : Number.MAX_SAFE_INTEGER,
+      meta: metaLine,
+      content: rest
+    };
+
+    if(!books.has(bookTitle)){
+      books.set(bookTitle, { title: bookTitle, items: [] });
+    }
+    books.get(bookTitle).items.push(item);
+  }
+
+  // sort items by location
+for(const b of books.values()){
+  b.items.sort((a,b)=> a.locationSort - b.locationSort);
+
+  // ✅ 去重 + 合并断句
+  b.items = dedupeAndMergeItems(b.items);
+
+  // 合并后再按 location 重新排一下（保险）
+  b.items.sort((a,b)=> a.locationSort - b.locationSort);
+}
+
+  // convert to array; sort books by count desc then title
+  const arr = Array.from(books.values());
+  arr.sort((a,b)=> (b.items.length - a.items.length) || a.title.localeCompare(b.title, "zh-Hans-CN"));
+  return arr;
+}
+
+/** ========== State + Render ========== */
+let state = {
+  books: [],
+  activeTitle: null,
+  query: ""
+};
+
+function filteredBooks(){
+  const q = state.query.trim().toLowerCase();
+  if(!q) return state.books;
+
+  return state.books
+    .map(b=>{
+      const inTitle = b.title.toLowerCase().includes(q);
+      if(inTitle) return b;
+
+      const items = b.items.filter(it => it.content.toLowerCase().includes(q));
+      if(items.length===0) return null;
+      return { ...b, items };
+    })
+    .filter(Boolean);
+}
+
+function render(){
+  const list = $("#booklist");
+  list.innerHTML = "";
+
+  const books = filteredBooks();
+  const totalItems = state.books.reduce((s,b)=>s+b.items.length,0);
+  $("#stat").textContent = state.books.length ? `${state.books.length} 本 · ${totalItems} 条` : "未导入";
+
+  // if active not in filtered, clear selection
+  if(state.activeTitle && !books.some(b=>b.title===state.activeTitle)){
+    state.activeTitle = null;
+  }
+
+  for(const b of books){
+    const div = document.createElement("div");
+    div.className = "book" + (b.title===state.activeTitle ? " active":"");
+    div.onclick = ()=> { state.activeTitle=b.title; render(); };
+
+    div.innerHTML = `
+      <div class="t">
+        <div class="title">${escapeHtml(b.title)}</div>
+        <div class="meta">${b.items.length} 条</div>
+      </div>
+      <div class="badge">›</div>
+    `;
+    list.appendChild(div);
+  }
+
+  renderContent(books);
+}
+
+function renderContent(books){
+  const content = $("#content");
+  const titleEl = $("#bookTitle");
+  const copyBookBtn = $("#copyBook");
+
+  const active = state.activeTitle ? books.find(b=>b.title===state.activeTitle) : null;
+
+  if(!active){
+    titleEl.textContent = "未选择书籍";
+    copyBookBtn.disabled = true;
+    content.innerHTML = `<div class="empty">左侧选择一本书。你也可以用上方搜索，按书名或内容过滤。</div>`;
+    return;
+  }
+
+  titleEl.textContent = active.title;
+  copyBookBtn.disabled = false;
+
+  content.innerHTML = "";
+  for(const it of active.items){
+    const card = document.createElement("div");
+    card.className = "clip";
+
+    const locText = it.location ? `Loc ${it.location.start}${it.location.end && it.location.end!==it.location.start ? "-"+it.location.end : ""}` : "Loc ?";
+    card.innerHTML = `
+      <div class="clipTop">
+        <span class="tag">${typeLabel(it.type)}</span>
+        <span class="loc">${escapeHtml(locText)}</span>
+      </div>
+      <div class="clipText">${escapeHtml(it.content)}</div>
+      <div class="clipActions">
+        <button class="btn">复制这条</button>
+        <button class="btn">复制含元信息</button>
+      </div>
+    `;
+
+    const [btn1, btn2] = card.querySelectorAll("button");
+    btn1.onclick = ()=> copyText(it.content);
+    btn2.onclick = ()=> copyText(`${active.title}\n${it.meta}\n\n${it.content}`);
+
+    content.appendChild(card);
+  }
+
+  copyBookBtn.onclick = ()=>{
+    const all = active.items.map(it=>{
+      const locText = it.location ? `Loc ${it.location.start}${it.location.end && it.location.end!==it.location.start ? "-"+it.location.end : ""}` : "Loc ?";
+      return `- [${typeLabel(it.type)} | ${locText}]\n${it.content}\n`;
+    }).join("\n");
+    copyText(`${active.title}\n\n${all}`.trim());
+  };
+}
+
+function escapeHtml(s){
+  return (s??"").replace(/[&<>"']/g, m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[m]));
+}
+
+/** ========== IO ========== */
+async function readFile(file){
+  // 先尝试 UTF-8，失败就用 TextDecoder 兜底（浏览器一般够用）
+  return await file.text();
+}
+
+async function loadText(text){
+  state.books = parseClippings(text);
+  state.activeTitle = state.books[0]?.title ?? null;
+  render();
+}
+
+$("#q").addEventListener("input", (e)=>{
+  state.query = e.target.value || "";
+  render();
+});
+
+$("#file").addEventListener("change", async (e)=>{
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const text = await readFile(file);
+  await loadText(text);
+});
+
+const drop = $("#drop");
+drop.addEventListener("dragover", (e)=>{ e.preventDefault(); drop.classList.add("drag"); });
+drop.addEventListener("dragleave", ()=> drop.classList.remove("drag"));
+drop.addEventListener("drop", async (e)=>{
+  e.preventDefault(); drop.classList.remove("drag");
+  const file = e.dataTransfer.files?.[0];
+  if(!file) return;
+  const text = await readFile(file);
+  await loadText(text);
+});
+
+render();
+</script>
+</body>
+</html>

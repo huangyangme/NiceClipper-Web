@@ -5,21 +5,56 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Kindle Clippings Viewer</title>
   <style>
-    :root { --bg:#0b0c0f; --panel:#12141a; --border:#242838; --text:#e7e9ee; --muted:#a7adbb; --accent:#4da3ff; }
+    :root {
+      --bg-from:#f8f9fc;
+      --bg-to:#eef2f9;
+      --panel:rgba(255,255,255,.92);
+      --border:#d9deea;
+      --text:#172033;
+      --muted:#5e677d;
+      --accent:#2d78ff;
+      --surface-soft:rgba(255,255,255,.72);
+      --surface-mid:rgba(255,255,255,.64);
+      --accent-soft:rgba(45,120,255,.12);
+      --accent-ring:rgba(45,120,255,.35);
+      --drop-border:#b4bfd8;
+      --btn-hover-border:#9aa8c8;
+      --shadow:0 20px 60px rgba(17,30,62,.16);
+    }
+    body[data-theme="dark"]{
+      --bg-from:#0b0c0f;
+      --bg-to:#0a0b0e;
+      --panel:rgba(18,20,26,.9);
+      --border:#242838;
+      --text:#e7e9ee;
+      --muted:#a7adbb;
+      --accent:#4da3ff;
+      --surface-soft:rgba(255,255,255,.03);
+      --surface-mid:rgba(255,255,255,.02);
+      --accent-soft:rgba(77,163,255,.12);
+      --accent-ring:rgba(77,163,255,.35);
+      --drop-border:#3a4060;
+      --btn-hover-border:#3b4266;
+      --shadow:0 20px 60px rgba(0,0,0,.45);
+    }
     *{box-sizing:border-box}
-    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:linear-gradient(180deg,#0b0c0f,#0a0b0e);color:var(--text);height:100vh;display:flex;align-items:center;justify-content:center}
-    .app{width:min(1200px,96vw);height:min(720px,92vh);background:rgba(18,20,26,.9);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:linear-gradient(180deg,var(--bg-from),var(--bg-to));color:var(--text);height:100vh;display:flex;align-items:center;justify-content:center}
+    .app{width:min(1200px,96vw);height:min(720px,92vh);background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;box-shadow:var(--shadow)}
     .sidebar{width:320px;border-right:1px solid var(--border);display:flex;flex-direction:column}
     .topbar{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.03)}
+    .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 10px;border-radius:999px;background:var(--surface-soft)}
+    .brand{display:flex;align-items:center;justify-content:center;height:36px;padding:0 2px}
+    .brand img{display:block;height:20px;width:auto}
     .search{flex:1}
-    input[type="search"]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);outline:none;background:rgba(255,255,255,.03);color:var(--text)}
-    .drop{margin:12px 14px;padding:14px;border:1px dashed #3a4060;border-radius:12px;background:rgba(255,255,255,.02);color:var(--muted);font-size:13px;line-height:1.4}
-    .drop.drag{border-color:var(--accent);color:var(--text);background:rgba(77,163,255,.08)}
+    input[type="search"]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);outline:none;background:var(--surface-soft);color:var(--text)}
+    input[type="search"]::placeholder{color:var(--muted)}
+    .drop{margin:12px 14px;padding:14px;border:1px dashed var(--drop-border);border-radius:12px;background:var(--surface-mid);color:var(--muted);font-size:13px;line-height:1.4;cursor:pointer;transition:border-color .16s ease,background .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease}
+    .drop:hover,.drop:focus-visible{border-color:var(--accent);background:var(--accent-soft);color:var(--text);transform:translateY(-1px);box-shadow:0 8px 20px rgba(45,120,255,.16)}
+    .drop.drag{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
     .booklist{flex:1;overflow:auto;padding:6px 6px 10px}
     .book{padding:10px 10px;border-radius:10px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
-    .book:hover{background:rgba(255,255,255,.04)}
-    .book.active{background:rgba(77,163,255,.12);outline:1px solid rgba(77,163,255,.35)}
+    .book:hover{background:var(--surface-soft)}
+    .book.active{background:var(--accent-soft);outline:1px solid var(--accent-ring)}
     .book .t{flex:1}
     .book .title{font-size:13px;line-height:1.35}
     .book .meta{font-size:12px;color:var(--muted);margin-top:4px}
@@ -27,34 +62,36 @@
     .main{flex:1;display:flex;flex-direction:column}
     .mainHead{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .mainHead h1{font-size:16px;margin:0;flex:1}
-    .btn{appearance:none;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
-    .btn:hover{border-color:#3b4266}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--surface-soft);color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
+    .btn:hover{border-color:var(--btn-hover-border)}
+    .themeBtn{width:36px;height:36px;padding:0;display:grid;place-items:center;line-height:1}
+    .themeBtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .content{flex:1;overflow:auto;padding:16px}
     .empty{color:var(--muted);font-size:14px;line-height:1.6;max-width:520px;margin:40px auto;text-align:center}
-    .clip{border:1px solid var(--border);background:rgba(255,255,255,.02);border-radius:12px;padding:12px 12px 10px;margin:0 0 10px}
+    .clip{border:1px solid var(--border);background:var(--surface-mid);border-radius:12px;padding:12px 12px 10px;margin:0 0 10px}
     .clipTop{display:flex;gap:10px;align-items:center;margin-bottom:8px}
     .tag{font-size:12px;border:1px solid var(--border);padding:2px 8px;border-radius:999px;color:var(--muted)}
     .loc{font-size:12px;color:var(--muted);margin-left:auto}
     .clipText{white-space:pre-wrap;line-height:1.7;font-size:14px}
     .clipActions{display:flex;gap:8px;margin-top:10px}
-    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(10,11,14,.9);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s}
     .toast.show{opacity:1}
     .footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .filepick{margin-left:auto}
-    .filepick input{display:none}
-    .filepick label{cursor:pointer}
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
       <div class="topbar">
-        <div class="pill">Kindle Clippings</div>
+        <div class="brand" aria-label="NiceClipper">
+          <img id="brandLogo" src="./logo.png" alt="NiceClipper logo" />
+        </div>
         <div class="search"><input id="q" type="search" placeholder="搜索书名 / 内容" /></div>
+        <button class="btn themeBtn" id="themeToggle" type="button" aria-label="切换主题" title="切换主题"></button>
       </div>
 
-      <div id="drop" class="drop">
-        把 <b>My Clippings.txt</b> 拖到这里，或右下角选择文件。<br/>
+      <div id="drop" class="drop" role="button" tabindex="0" aria-label="选择 My Clippings 文件">
+        把 <b>My Clippings.txt</b> 拖到这里，或点击选择。<br/>
         （本地解析，不会上传）
       </div>
 
@@ -62,10 +99,7 @@
 
       <div class="footer">
         <span class="pill" id="stat">未导入</span>
-        <div class="filepick">
-          <label class="btn" for="file">选择文件</label>
-          <input id="file" type="file" accept=".txt,text/plain" />
-        </div>
+        <input id="file" type="file" accept=".txt,text/plain" hidden />
       </div>
     </aside>
 
@@ -88,6 +122,9 @@
 <script>
 /** ========== Utils ========== */
 const $ = (s)=>document.querySelector(s);
+const THEME_KEY = "niceclipper-theme";
+const ICON_SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.8v2.6M12 18.6v2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M2.8 12h2.6M18.6 12h2.6M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"></path></svg>';
+const ICON_MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 3.7a8.9 8.9 0 1 0 4.5 16.5A9.4 9.4 0 0 1 15.8 3.7Z"></path></svg>';
 const toast = (msg="已复制")=>{
   const t=$("#toast");
   t.textContent=msg;
@@ -95,6 +132,28 @@ const toast = (msg="已复制")=>{
   clearTimeout(toast._timer);
   toast._timer=setTimeout(()=>t.classList.remove("show"), 900);
 };
+
+function applyTheme(theme){
+  const next = theme === "dark" ? "dark" : "light";
+  const isDark = next === "dark";
+  document.body.setAttribute("data-theme", next);
+  $("#brandLogo").setAttribute("src", isDark ? "./logo_dark.png" : "./logo.png");
+  $("#themeToggle").innerHTML = isDark ? ICON_SUN : ICON_MOON;
+  $("#themeToggle").setAttribute("aria-label", isDark ? "切换到浅色主题" : "切换到深色主题");
+  $("#themeToggle").setAttribute("title", isDark ? "切换到浅色主题" : "切换到深色主题");
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+}
+
+function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
+  applyTheme(saved === "dark" || saved === "light" ? saved : "light");
+
+  $("#themeToggle").addEventListener("click", ()=>{
+    const current = document.body.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    applyTheme(current === "dark" ? "light" : "dark");
+  });
+}
 
 // 去掉作者括号：只处理行尾的 " (xxx)"，保留书名里可能出现的括号
 function stripAuthorParen(titleLine){
@@ -454,7 +513,17 @@ drop.addEventListener("drop", async (e)=>{
   const text = await readFile(file);
   await loadText(text);
 });
+drop.addEventListener("click", ()=>{
+  $("#file").click();
+});
+drop.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter" || e.key === " "){
+    e.preventDefault();
+    $("#file").click();
+  }
+});
 
+initTheme();
 render();
 </script>
 </body>
